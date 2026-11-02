@@ -11,20 +11,20 @@ export function countNeighbors(grid, x, y) {
     return sum;
 }
 
-export function nextGeneration(currentGrid) {
+export function processNextGeneration(currentGrid) {
     const nextGrid = new Grid(currentGrid.cols, currentGrid.rows);
-
+    
     for (let x = 0; x < currentGrid.cols; x++) {
         for (let y = 0; y < currentGrid.rows; y++) {
             let neighbors = countNeighbors(currentGrid, x, y);
             let state = currentGrid.get(x, y);
-
+            
             if (state === 1 && (neighbors < 2 || neighbors > 3)) {
-                nextGrid.set(x, y, 0); // Помирає
+                nextGrid.set(x, y, 0);
             } else if (state === 0 && neighbors === 3) {
-                nextGrid.set(x, y, 1); // Народжується
+                nextGrid.set(x, y, 1);
             } else {
-                nextGrid.set(x, y, state); // Залишається без змін
+                nextGrid.set(x, y, state);
             }
         }
     }

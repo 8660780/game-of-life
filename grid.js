@@ -2,7 +2,6 @@ export class Grid {
     constructor(cols, rows) {
         this.cols = cols;
         this.rows = rows;
-        // Створюємо двовимірний масив
         this.cells = new Array(cols).fill(null).map(() => new Array(rows).fill(0));
     }
 

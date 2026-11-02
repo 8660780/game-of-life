@@ -1,27 +1,23 @@
-export function drawGrid(ctx, canvas, grid, cellSize) {
-    // Очищаємо екран (чорний фон)
-    ctx.fillStyle = "black";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+let imageData = null;
 
-    // Малюємо живі клітинки
-    ctx.fillStyle = "white";
+export function drawGrid(ctx, canvas, grid) {
+    if (!imageData || imageData.width !== grid.cols || imageData.height !== grid.rows) {
+        imageData = ctx.createImageData(grid.cols, grid.rows);
+    }
+
     for (let x = 0; x < grid.cols; x++) {
         for (let y = 0; y < grid.rows; y++) {
-            if (grid.get(x, y) === 1) {
-                ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
-            }
+            const index = (y * grid.cols + x) * 4;
+            const isAlive = grid.get(x, y) === 1;
+            
+            const color = isAlive ? 255 : 0; 
+            
+            imageData.data[index] = color;     // Red
+            imageData.data[index + 1] = color; // Green
+            imageData.data[index + 2] = color; // Blue
+            imageData.data[index + 3] = 255;   // Alpha
         }
     }
-
-    // Малюємо сіру сітку
-    ctx.strokeStyle = "#333";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for(let x = 0; x <= canvas.width; x += cellSize) { 
-        ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); 
-    }
-    for(let y = 0; y <= canvas.height; y += cellSize) { 
-        ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); 
-    }
-    ctx.stroke();
+    
+    ctx.putImageData(imageData, 0, 0);
 }
