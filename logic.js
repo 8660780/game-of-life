@@ -13,12 +13,11 @@ export function countNeighbors(grid, x, y) {
 
 export function processNextGeneration(currentGrid) {
     const nextGrid = new Grid(currentGrid.cols, currentGrid.rows);
-    
     for (let x = 0; x < currentGrid.cols; x++) {
         for (let y = 0; y < currentGrid.rows; y++) {
             let neighbors = countNeighbors(currentGrid, x, y);
             let state = currentGrid.get(x, y);
-            
+
             if (state === 1 && (neighbors < 2 || neighbors > 3)) {
                 nextGrid.set(x, y, 0);
             } else if (state === 0 && neighbors === 3) {

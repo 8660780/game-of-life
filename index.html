@@ -2,15 +2,25 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Game of Life - Advanced (Pixel Buffer)</title>
+    <title>Game of Life - Advanced Patterns</title>
     <style>
         body { 
             background-color: #222; color: white; display: flex; 
             flex-direction: column; align-items: center; margin-top: 20px; font-family: sans-serif; 
         }
+        .canvas-wrap { position: relative; display: inline-block; line-height: 0; }
+        #gridOverlay {
+            position: absolute; top: 2px; left: 2px; right: 2px; bottom: 2px;
+            pointer-events: none; display: none;
+            background-image:
+                linear-gradient(to right, rgba(255,255,255,0.18) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(255,255,255,0.18) 1px, transparent 1px);
+            background-size: 6px 6px;
+        }
+        #gridOverlay.visible { display: block; }
         canvas { 
-            width: 600px; height: 600px; /* Візуальний розмір */
-            image-rendering: pixelated;  /* Щоб пікселі були чіткими */
+            display: block; width: 600px; height: 600px; 
+            image-rendering: pixelated; 
             border: 2px solid #555; background-color: black; box-shadow: 0 0 15px rgba(0,0,0,0.8); cursor: crosshair; 
         }
         .controls { 
@@ -21,23 +31,34 @@
         }
         input[type="number"] { background-color: #555; cursor: text; width: 60px; }
         button:hover { background-color: #45a049; }
+        button:disabled { background-color: #444; color: #888; cursor: not-allowed; }
         button#resetBtn { background-color: #f44336; }
+        button#gridBtn, button#marksBtn { background-color: #555; }
+        button#gridBtn.active { background-color: #2196F3; }
+        button#marksBtn.active { background-color: #FF9800; }
         .speed-control { display: flex; align-items: center; gap: 8px; margin-left: 10px; }
         p.hints { color: #aaa; font-size: 14px; margin-top: 10px; }
+        .legend-launch { color: #4CAF50; font-weight: bold; }
+        .legend-arrow { color: #FF9800; font-weight: bold; }
     </style>
 </head>
 <body>
     <h2>Conway's Game of Life</h2>
-    <!-- Реальний розмір холста 100x100 -->
-    <canvas id="gameCanvas" width="100" height="100"></canvas>
+    <div class="canvas-wrap">
+        <canvas id="gameCanvas" width="100" height="100"></canvas>
+        <div id="gridOverlay"></div>
+    </div>
     
     <div class="controls">
         <button id="startBtn">Play</button>
         <button id="stepBtn">Step</button>
         <button id="resetBtn">Clear</button>
+        <button id="gridBtn">Grid: Off</button>
+        <button id="marksBtn" class="active">Marks: On</button>
+        <button id="rotateBtn">Rotate 90°</button>
         
         <select id="patternSelect">
-            <option value="none">-- Load Pattern --</option>
+            <option value="none">-- Place Pattern --</option>
             <option value="glider">Glider</option>
             <option value="blinker">Blinker</option>
             <option value="block">Block</option>
@@ -51,8 +72,10 @@
         </div>
     </div>
     
-    <p class="hints">Keyboard: <b>Space</b> (Play/Pause) | <b>+</b> (Faster) | <b>-</b> (Slower)</p>
-    
+    <p class="hints">Keyboard: <b>Space</b> (Play) | <b>G</b> (Grid) | <b>M</b> (Marks) | <b>R</b> (Rotate) | <b>Esc</b> (Cancel) | <b>+ / -</b> (Speed)</p>
+    <p class="hints">Marks: <span class="legend-arrow">orange arrow</span> = direction, <span class="legend-launch">green</span> = launch pad. Disappears if broken.</p>
+
+    <!-- Підключаємо як модуль -->
     <script type="module" src="main.js"></script>
 </body>
 </html>
