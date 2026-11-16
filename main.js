@@ -9,6 +9,9 @@ const gridOverlay = document.getElementById("gridOverlay");
 const COLS = 100;
 const ROWS = 100;
 
+const SPEED_MIN = 10;
+const SPEED_MAX = 500;
+
 let currentGrid = new Grid(COLS, ROWS);
 let isRunning = false, animationId = null, lastFrameTime = 0, simulationSpeed = 50, generation = 0;
 
@@ -17,6 +20,8 @@ let showMarks = true;
 let activePattern = null;
 let hoverCell = null;
 let placedMarks = [];
+
+const inField = (x, y) => x >= 0 && x < COLS && y >= 0 && y < ROWS;
 
 // ---------- Патерни ----------
 const PATTERNS = {
@@ -79,6 +84,9 @@ function snapshotRegion(grid, r) {
     return snap;
 }
 
+// Область має збігатися з очікуваною фазою точно: і зниклі, і зайві живі клітинки
+// означають, що гармату зламано. (Раніше перевірялися лише очікувані живі клітинки,
+// тому зайва клітинка або глайдер усередині області помітки не прибирали.)
 function regionMatches(grid, r, snap) {
     let i = 0;
     for (let x = r.x0; x <= r.x1; x++) {
@@ -91,7 +99,7 @@ function regionMatches(grid, r, snap) {
 
 function computePhases(cells, region, period) {
     let g = new Grid(COLS, ROWS);
-    cells.forEach(([x, y]) => { if(x>=0 && x<COLS && y>=0 && y<ROWS) g.set(x, y, 1); });
+    cells.forEach(([x, y]) => g.set(x, y, 1));
     const phases = [];
     for (let p = 0; p < period * 2; p++) {
         phases.push(snapshotRegion(g, region));
@@ -141,7 +149,8 @@ function toggleSimulation() {
     const startBtn = document.getElementById("startBtn");
     if (isRunning) {
         startBtn.textContent = "Pause"; startBtn.style.backgroundColor = "#ff9800";
-        lastFrameTime = performance.now(); requestAnimationFrame(gameLoop);
+        lastFrameTime = performance.now();
+        animationId = requestAnimationFrame(gameLoop);   // раніше id не зберігався, і cancelAnimationFrame нічого не скасовував
     } else {
         startBtn.textContent = "Play"; startBtn.style.backgroundColor = "#4CAF50";
         cancelAnimationFrame(animationId);
@@ -149,31 +158,54 @@ function toggleSimulation() {
 }
 
 // ---------- UI та Події ----------
+// canvas має рамку: getBoundingClientRect() повертає розмір разом з нею, а координати клітинок
+// рахуються від внутрішньої області. Без урахування рамки клік зсувався приблизно на 2 пікселі,
+// і права третина кожної клітинки потрапляла в сусідню.
 const getCell = (e) => {
     const rect = canvas.getBoundingClientRect();
-    return { 
-        x: Math.floor((e.clientX - rect.left) * (canvas.width / rect.width)), 
-        y: Math.floor((e.clientY - rect.top) * (canvas.height / rect.height)) 
+    const px = e.clientX - rect.left - canvas.clientLeft;
+    const py = e.clientY - rect.top - canvas.clientTop;
+    return {
+        x: Math.floor(px * (canvas.width / canvas.clientWidth)),
+        y: Math.floor(py * (canvas.height / canvas.clientHeight))
     };
 };
+
+function cancelPlacement() {
+    activePattern = null;
+    document.getElementById("patternSelect").value = "none";
+    canvas.style.cursor = "crosshair";
+    rotateBtn.disabled = true;
+    updateView();
+}
 
 canvas.addEventListener("mousemove", (e) => { if(activePattern) { hoverCell = getCell(e); updateView(); } });
 canvas.addEventListener("mouseleave", () => { hoverCell = null; updateView(); });
 
+// Права кнопка миші скасовує розміщення патерну (як сказано в підказці)
+canvas.addEventListener("contextmenu", (e) => {
+    if (activePattern) {
+        e.preventDefault();
+        cancelPlacement();
+    }
+});
+
 canvas.addEventListener("mousedown", (e) => {
     if (e.button !== 0) return;
     const { x, y } = getCell(e);
-    if (x < 0 || x >= COLS || y < 0 || y >= ROWS) return;
+    if (!inField(x, y)) return;
 
     if (activePattern) {
         const cells = getPlacementCells(x, y);
-        cells.forEach(([cx, cy]) => currentGrid.set(cx, cy, 1));
+        cells.forEach(([cx, cy]) => currentGrid.set(cx, cy, 1));   // Grid.set сам ігнорує клітинки за межами поля
+
         const marks = getPlacementMarks(x, y);
-        if (marks && activePattern.marks.persistent) {
-            const inField = cells.filter(([cx, cy]) => cx >= 0 && cx < COLS && cy >= 0 && cy < ROWS);
-            const xs = inField.map(c => c[0]), ys = inField.map(c => c[1]);
+        // Гармату, обрізану краєм поля, не відстежуємо: частини клітинок немає, тож це вже не робоча
+        // гармата, і помітки "стріляє звідси сюди" вводили б в оману.
+        if (marks && activePattern.marks.persistent && cells.every(([cx, cy]) => inField(cx, cy))) {
+            const xs = cells.map(c => c[0]), ys = cells.map(c => c[1]);
             const region = { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
-            placedMarks.push({ marks, region, period: activePattern.period, phases: computePhases(inField, region, activePattern.period), startGen: generation });
+            placedMarks.push({ marks, region, period: activePattern.period, phases: computePhases(cells, region, activePattern.period), startGen: generation });
         }
     } else {
         currentGrid.toggle(x, y);
@@ -214,18 +246,27 @@ document.getElementById("resetBtn").addEventListener("click", () => {
 document.getElementById("patternSelect").addEventListener("change", (e) => {
     const name = e.target.value;
     e.target.blur();
-    if (name === "none") {
-        activePattern = null; canvas.style.cursor = "crosshair"; rotateBtn.disabled = true;
-    } else {
-        activePattern = PATTERNS[name]; canvas.style.cursor = "copy"; rotateBtn.disabled = false;
+    if (name === "none" || !PATTERNS[name]) {
+        cancelPlacement();
+        return;
     }
+    activePattern = PATTERNS[name]; canvas.style.cursor = "copy"; rotateBtn.disabled = false;
     updateView();
 });
 
+// ---------- Швидкість ----------
 const speedRange = document.getElementById("speedRange"), speedInput = document.getElementById("speedInput");
-const setSpeed = (v) => { simulationSpeed = Math.max(10, Math.min(500, v)); speedRange.value = simulationSpeed; speedInput.value = simulationSpeed; };
-speedRange.addEventListener("input", (e) => setSpeed(parseInt(e.target.value)));
-speedInput.addEventListener("change", (e) => setSpeed(parseInt(e.target.value)));
+
+// Порожнє або нечислове поле дає parseInt(...) === NaN. Раніше це потрапляло в simulationSpeed,
+// і умова deltaTime > NaN більше ніколи не спрацьовувала: симуляція зупинялась.
+// Тепер некоректне значення ігнорується, а в поля повертається остання коректна швидкість.
+const setSpeed = (v) => {
+    if (Number.isFinite(v)) simulationSpeed = Math.max(SPEED_MIN, Math.min(SPEED_MAX, Math.round(v)));
+    speedRange.value = simulationSpeed;
+    speedInput.value = simulationSpeed;
+};
+speedRange.addEventListener("input", (e) => setSpeed(parseInt(e.target.value, 10)));
+speedInput.addEventListener("change", (e) => setSpeed(parseInt(e.target.value, 10)));
 
 document.addEventListener("keydown", (e) => {
     if (document.activeElement === speedInput) return;
@@ -233,7 +274,7 @@ document.addEventListener("keydown", (e) => {
     else if (e.code === "KeyG") document.getElementById("gridBtn").click();
     else if (e.code === "KeyM") document.getElementById("marksBtn").click();
     else if (e.code === "KeyR") rotateBtn.click();
-    else if (e.code === "Escape") { activePattern = null; document.getElementById("patternSelect").value = "none"; canvas.style.cursor = "crosshair"; rotateBtn.disabled = true; updateView(); }
+    else if (e.code === "Escape") { if (activePattern) cancelPlacement(); }
     else if (e.key === "+" || e.key === "=") setSpeed(simulationSpeed - 10);
     else if (e.key === "-") setSpeed(simulationSpeed + 10);
 });
